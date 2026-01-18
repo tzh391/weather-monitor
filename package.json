@@ -1,0 +1,17 @@
+{
+  "name": "shanghai-weather-monitor",
+  "version": "1.0.0",
+  "description": "上海气象数据实时监测系统",
+  "main": "scripts/dataCollector.js",
+  "scripts": {
+    "collect": "node scripts/dataCollector.js",
+    "generate": "node scripts/generateWebPage.js",
+    "start": "node scripts/dataCollector.js"
+  },
+  "keywords": ["weather", "shanghai", "monitoring"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
