@@ -7,7 +7,7 @@ const API_URL = 'ztq.soweather.com';
 const API_PORT = 8096;
 const API_PATH = '/ztq_sh_jc/service.do';
 
-// 站点配置 - 12个站点
+// 站点配置 - 13个站点
 const STATIONS = {
     '58367': { name: '徐家汇', id: '58367' },
     '58361': { name: '宝山', id: '58361' },
@@ -24,10 +24,13 @@ const STATIONS = {
     '58474': { name: '小洋山', id: '58474' }
 };
 
-// 数据存储目录
-const DATA_DIR = path.join(__dirname, 'weather_data');
+// 数据存储目录 - 相对于项目根目录
+const DATA_DIR = path.join(process.cwd(), 'weather_data');
+
+// 确保目录存在
 if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR);
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    console.log(`📁 创建数据目录: ${DATA_DIR}`);
 }
 
 // 获取东八区时间字符串
@@ -60,7 +63,7 @@ function ensureCSVFile(filePath) {
     if (!fs.existsSync(filePath)) {
         const header = 'timestamp,wind_speed,rainfall,humidity,wind_dir,ct,vaporpressuser,visibility,upt\n';
         fs.writeFileSync(filePath, header, 'utf8');
-        console.log(`创建新文件: ${filePath}`);
+        console.log(`📄 创建新文件: ${path.basename(filePath)}`);
     }
 }
 
@@ -84,9 +87,9 @@ function fetchWeatherData(stationId) {
             path: url,
             method: 'GET',
             headers: {
-                'User-Agent': 'Node.js Weather Collector'
+                'User-Agent': 'GitHub Actions Weather Collector'
             },
-            timeout: 10000
+            timeout: 15000  // 增加超时时间
         };
 
         const req = http.request(options, (res) => {
@@ -101,7 +104,7 @@ function fetchWeatherData(stationId) {
                     const jsonData = JSON.parse(data);
                     resolve(jsonData);
                 } catch (error) {
-                    reject(new Error(`JSON解析错误: ${error.message}\n响应内容: ${data}`));
+                    reject(new Error(`JSON解析错误: ${error.message}`));
                 }
             });
         });
@@ -125,12 +128,12 @@ function saveDataToCSV(weatherData, stationId) {
     ensureCSVFile(filePath);
 
     if (weatherData.h && weatherData.h.is !== 0) {
-        console.error(`[${STATIONS[stationId].name}] API错误: ${weatherData.h.error}`);
+        console.error(`❌ [${STATIONS[stationId].name}] API错误: ${weatherData.h.error}`);
         return false;
     }
 
     if (!weatherData.b || !weatherData.b.fycx_sstq) {
-        console.error(`[${STATIONS[stationId].name}] 数据格式错误:`, JSON.stringify(weatherData, null, 2));
+        console.error(`❌ [${STATIONS[stationId].name}] 数据格式错误`);
         return false;
     }
 
@@ -150,125 +153,73 @@ function saveDataToCSV(weatherData, stationId) {
     ].join(',') + '\n';
 
     fs.appendFileSync(filePath, row, 'utf8');
-    console.log(`✓ [${STATIONS[stationId].name}] 数据已保存: ${timestamp}`);
-    console.log(`  风速: ${data.wind_speed} m/s | 降雨: ${data.rainfall} mm | 湿度: ${data.humidity}%`);
-    console.log(`  温度: ${data.ct}°C | 气压: ${data.vaporpressuser} hPa | 能见度: ${data.visibility} m`);
+    console.log(`✅ [${STATIONS[stationId].name}] ${timestamp}`);
+    console.log(`   🌡️  ${data.ct}°C | 💧 ${data.humidity}% | 🌬️  ${data.wind_speed} m/s | 🌧️  ${data.rainfall} mm`);
     
     return true;
 }
 
 // 执行数据采集（所有站点）
 async function collectData() {
-    console.log(`\n[${'='.repeat(60)}]`);
-    console.log(`[${getBeijingTime()}] 开始采集数据...`);
+    console.log(`\n${'='.repeat(70)}`);
+    console.log(`🌤️  上海气象数据采集 - ${getBeijingTime()}`);
+    console.log(`${'='.repeat(70)}\n`);
     
     const stationIds = Object.keys(STATIONS);
     let successCount = 0;
+    let failedStations = [];
     
     for (const stationId of stationIds) {
         try {
-            console.log(`\n--- 采集 ${STATIONS[stationId].name} (${stationId}) ---`);
             const weatherData = await fetchWeatherData(stationId);
             if (saveDataToCSV(weatherData, stationId)) {
                 successCount++;
+            } else {
+                failedStations.push(STATIONS[stationId].name);
             }
-            // 每个请求之间延迟500ms，避免请求过快
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // 每个请求之间延迟800ms，避免请求过快
+            await new Promise(resolve => setTimeout(resolve, 800));
         } catch (error) {
-            console.error(`✗ [${STATIONS[stationId].name}] 数据采集失败: ${error.message}`);
+            console.error(`❌ [${STATIONS[stationId].name}] ${error.message}`);
+            failedStations.push(STATIONS[stationId].name);
         }
     }
     
-    console.log(`\n📊 采集完成: ${successCount}/${stationIds.length} 个站点成功`);
-    console.log(`[${'='.repeat(60)}]\n`);
-}
-
-// 计算下一次执行时间
-function getNextExecutionDelay() {
-    const now = new Date();
-    const currentMinute = now.getMinutes();
-    const currentSecond = now.getSeconds();
-    
-    const targetMinutes = [3, 8, 13, 18, 23, 28, 33, 38, 43, 48, 53, 58];
-    let nextMinute = targetMinutes.find(m => m > currentMinute);
-    
-    if (!nextMinute) {
-        nextMinute = targetMinutes[0];
+    console.log(`\n${'='.repeat(70)}`);
+    console.log(`📊 采集结果: ${successCount}/${stationIds.length} 个站点成功`);
+    if (failedStations.length > 0) {
+        console.log(`⚠️  失败站点: ${failedStations.join(', ')}`);
     }
+    console.log(`📁 数据保存于: ${DATA_DIR}`);
+    console.log(`${'='.repeat(70)}\n`);
     
-    let minutesToWait;
-    if (nextMinute > currentMinute) {
-        minutesToWait = nextMinute - currentMinute;
-    } else {
-        minutesToWait = 60 - currentMinute + nextMinute;
-    }
-    
-    const secondsToWait = minutesToWait * 60 - currentSecond;
-    return secondsToWait * 1000;
-}
-
-// 调度任务
-function scheduleNextExecution() {
-    const delay = getNextExecutionDelay();
-    const nextTimeUTC = new Date(Date.now() + delay);
-    const nextTimeBeijing = new Date(nextTimeUTC.getTime() + (8 * 60 * 60 * 1000));
-    
-    const year = nextTimeBeijing.getUTCFullYear();
-    const month = String(nextTimeBeijing.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(nextTimeBeijing.getUTCDate()).padStart(2, '0');
-    const hours = String(nextTimeBeijing.getUTCHours()).padStart(2, '0');
-    const minutes = String(nextTimeBeijing.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(nextTimeBeijing.getUTCSeconds()).padStart(2, '0');
-    
-    const nextTimeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    console.log(`⏰ 下一次执行时间: ${nextTimeStr} (${Math.round(delay / 1000)}秒后)`);
-    
-    setTimeout(() => {
-        collectData();
-        scheduleNextExecution();
-    }, delay);
+    // 返回状态码
+    return successCount > 0 ? 0 : 1;
 }
 
 // 主函数
 async function main() {
     console.log('\n' + '='.repeat(70));
-    console.log('          🌤️  上海气象数据采集系统启动  🌤️');
+    console.log('          🌤️  上海气象数据采集系统  🌤️');
     console.log('='.repeat(70));
-    console.log(`📁 数据存储目录: ${DATA_DIR}`);
-    console.log(`🌐 API地址: http://${API_URL}:${API_PORT}${API_PATH}`);
-    console.log(`📊 监测站点 (共${Object.keys(STATIONS).length}个):`);
-    
-    // 按照区域分组显示
-    const groups = [
-        ['58367', '58370', '58362', '58369'],  // 中心区域
-        ['58361', '58365', '58366'],           // 北部
-        ['58460', '58461', '58462', '58463'],  // 西南部
-        ['58363', '58474']                      // 沿海
-    ];
-    
-    const groupNames = ['中心区域', '北部区域', '西南部区域', '沿海区域'];
-    
-    groups.forEach((group, index) => {
-        console.log(`   ${groupNames[index]}:`);
-        group.forEach(id => {
-            if (STATIONS[id]) {
-                console.log(`     - ${STATIONS[id].name} (${id})`);
-            }
-        });
-    });
-    
-    console.log(`⏱️  采集间隔: 每5分钟 (3、8、13、18、23、28、33、38、43、48、53、58分)`);
+    console.log(`📁 数据目录: ${DATA_DIR}`);
+    console.log(`🌐 API: http://${API_URL}:${API_PORT}${API_PATH}`);
+    console.log(`📊 监测站点: ${Object.keys(STATIONS).length}个`);
     console.log(`🕐 时区: 东八区 (UTC+8)`);
     console.log('='.repeat(70) + '\n');
     
-    await collectData();
-    scheduleNextExecution();
+    try {
+        const exitCode = await collectData();
+        process.exit(exitCode);
+    } catch (error) {
+        console.error('❌ 程序执行错误:', error);
+        process.exit(1);
+    }
 }
 
-process.on('SIGINT', () => {
-    console.log('\n\n收到退出信号，程序即将关闭...');
-    console.log('再见！👋\n');
-    process.exit(0);
-});
+// 只在直接运行时执行（不是被 require 时）
+if (require.main === module) {
+    main();
+}
 
-main();
+module.exports = { collectData, STATIONS, DATA_DIR };
