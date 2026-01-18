@@ -14,13 +14,13 @@
 
 ### 在线访问
 
-访问: `https://你的用户名.github.io/仓库名/`
+访问: `https://tzh391.github.io/weather-monitor/`
 
 ### 本地运行
 
 ```bash
 # 克隆仓库
-git clone https://github.com/你的用户名/仓库名.git
+git clone https://github.com/tzh391/weather-monitor.git
 cd仓库名
 
 # 运行数据采集（需要持续运行）
