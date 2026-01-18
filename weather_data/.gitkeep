@@ -1,9 +1,1 @@
-# 创建目录和占位文件
-mkdir -p weather_data
-touch weather_data/.gitkeep
 
-# 更新 .gitignore（如果需要忽略 CSV 文件）
-cat >> .gitignore << 'EOF'
-# 临时忽略大型 CSV 文件（可选）
-# weather_data/*.csv
-EOF
