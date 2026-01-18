@@ -9,7 +9,8 @@ on:
     branches:
       - main
     paths:
-      - 'dataCollector.js'
+      - 'scripts/dataCollector.js'
+      - 'scripts/generateWebPage.js'
       - '.github/workflows/collect-data.yml'
 
 # 设置权限
@@ -38,14 +39,17 @@ jobs:
           mkdir -p public
           ls -la
           echo "Current directory: $(pwd)"
+          echo "Scripts directory exists: $(test -d scripts && echo 'yes' || echo 'no')"
           echo "weather_data exists: $(test -d weather_data && echo 'yes' || echo 'no')"
+          echo "Files in scripts/:"
+          ls -la scripts/ || echo "scripts directory not found"
       
       - name: 🌤️ Collect weather data
         run: |
           echo "=========================================="
           echo "Starting data collection..."
           echo "=========================================="
-          node dataCollector.js
+          node scripts/dataCollector.js
           echo "=========================================="
           echo "Data collection completed"
           echo "=========================================="
@@ -58,20 +62,20 @@ jobs:
           ls -lah weather_data/ || echo "weather_data directory is empty or doesn't exist"
           echo ""
           echo "File count:"
-          find weather_data -name "*.csv" | wc -l
+          find weather_data -name "*.csv" 2>/dev/null | wc -l
           echo ""
           echo "CSV files:"
-          find weather_data -name "*.csv" -exec echo "  - {}" \; -exec wc -l {} \;
+          find weather_data -name "*.csv" -exec echo "  - {}" \; -exec wc -l {} \; 2>/dev/null || echo "No CSV files found"
           echo ""
           echo "Sample content (first 5 lines of first file):"
-          find weather_data -name "*.csv" -type f | head -1 | xargs head -5 || echo "No CSV files found"
+          find weather_data -name "*.csv" -type f 2>/dev/null | head -1 | xargs head -5 || echo "No CSV files found"
       
       - name: 📈 Generate web page
         run: |
           echo "=========================================="
           echo "Generating web page..."
           echo "=========================================="
-          node generateWebPage.js
+          node scripts/generateWebPage.js
           echo "=========================================="
           echo "Web page generation completed"
           echo "=========================================="
@@ -90,6 +94,12 @@ jobs:
           else
             echo "weather_data.json not found"
           fi
+          echo ""
+          if [ -f public/index.html ]; then
+            echo "index.html size: $(wc -c < public/index.html) bytes"
+          else
+            echo "index.html not found"
+          fi
       
       - name: 🔍 Debug - Show all files
         if: always()
@@ -97,7 +107,10 @@ jobs:
           echo "=========================================="
           echo "All files in workspace:"
           echo "=========================================="
-          find . -type f -name "*.csv" -o -name "*.json" | head -20
+          find . -type f \( -name "*.csv" -o -name "*.json" -o -name "*.html" \) 2>/dev/null | head -30
+          echo ""
+          echo "Directory structure:"
+          tree -L 2 -a || ls -R
       
       - name: 📤 Commit and push changes
         run: |
@@ -105,9 +118,13 @@ jobs:
           git config --local user.name "github-actions[bot]"
           
           # 添加所有数据文件
-          git add weather_data/*.csv || echo "No CSV files to add"
-          git add public/weather_data.json || echo "No JSON file to add"
-          git add public/index.html || echo "No HTML file to add"
+          git add weather_data/*.csv 2>/dev/null || echo "No CSV files to add"
+          git add public/weather_data.json 2>/dev/null || echo "No JSON file to add"
+          git add public/index.html 2>/dev/null || echo "No HTML file to add"
+          
+          # 显示将要提交的文件
+          echo "Files staged for commit:"
+          git diff --staged --name-only
           
           # 检查是否有更改
           if git diff --staged --quiet; then
@@ -127,4 +144,5 @@ jobs:
           path: |
             weather_data/
             public/
+            scripts/
           retention-days: 7
