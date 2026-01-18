@@ -1,7 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-// 站点配置
+// 配置
+const DATA_DIR = path.join(process.cwd(), 'weather_data');
+const OUTPUT_DIR = path.join(process.cwd(), 'public');
+const OUTPUT_FILE = path.join(OUTPUT_DIR, 'weather_data.json');
+
+// 站点配置（与 dataCollector.js 保持一致）
 const STATIONS = {
     '58367': { name: '徐家汇', color: 'rgb(255, 99, 132)' },
     '58361': { name: '闵行', color: 'rgb(54, 162, 235)' },
@@ -18,605 +23,443 @@ const STATIONS = {
     '58474': { name: '小洋山', color: 'rgb(102, 187, 106)' }
 };
 
-const DATA_DIR = path.join(__dirname, '..', 'weather_data');
-const OUTPUT_DIR = path.join(__dirname, '..', 'public');
+// 获取东八区时间字符串
+function getBeijingTime() {
+    const now = new Date();
+    const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+    const year = beijingTime.getUTCFullYear();
+    const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+    const hours = String(beijingTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(beijingTime.getUTCSeconds()).padStart(2, '0');
+    
+    return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+}
 
-// 读取CSV数据
-function readCSVData(filePath) {
-    if (!fs.existsSync(filePath)) {
+// 解析 CSV 文件
+function parseCSV(filePath) {
+    try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines = content.trim().split('\n');
+        
+        if (lines.length <= 1) {
+            console.log(`⚠️  文件为空或只有表头: ${path.basename(filePath)}`);
+            return [];
+        }
+
+        // 跳过表头
+        const dataLines = lines.slice(1);
+        
+        const data = dataLines.map(line => {
+            const parts = line.split(',');
+            
+            // 解析数据
+            return {
+                timestamp: parts[0] || null,
+                temperature: parts[4] ? parseFloat(parts[4]) : null,  // ct
+                humidity: parts[3] ? parseInt(parts[3]) : null,       // humidity
+                wind_speed: parts[1] ? parseFloat(parts[1]) : null,   // wind_speed
+                wind_dir: parts[5] || null,                            // wind_dir (来自 upt)
+                rainfall: parts[2] ? parseFloat(parts[2]) : null,     // rainfall
+                pressure: parts[6] ? parseFloat(parts[6]) : null,     // vaporpressuser
+                visibility: parts[7] ? parseInt(parts[7]) : null      // visibility
+            };
+        }).filter(item => item.timestamp); // 过滤掉无效数据
+
+        return data;
+    } catch (error) {
+        console.error(`❌ 解析文件失败 ${filePath}: ${error.message}`);
         return [];
     }
-
-    const content = fs.readFileSync(filePath, 'utf8');
-    const lines = content.trim().split('\n');
-    if (lines.length <= 1) return [];
-    
-    const header = lines[0].split(',');
-    const data = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
-        const row = {};
-        header.forEach((key, index) => {
-            row[key] = values[index];
-        });
-        data.push(row);
-    }
-    
-    return data;
 }
 
-// 获取最近N天的日期
-function getRecentDates(days = 7) {
-    const dates = [];
-    const now = new Date();
-    
-    for (let i = 0; i < days; i++) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        dates.push(dateStr);
-    }
-    
-    return dates;
-}
-
-// 收集所有可用数据
-function collectAllData() {
-    const recentDates = getRecentDates(7);
+// 读取所有站点的最新数据
+function readAllStationData(hoursToKeep = 24) {
     const allData = {};
+    const cutoffTime = Date.now() - (hoursToKeep * 60 * 60 * 1000);
+
+    // 获取所有 CSV 文件
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.csv'));
     
-    recentDates.forEach(date => {
-        Object.keys(STATIONS).forEach(stationId => {
-            const filePath = path.join(DATA_DIR, `weather_${stationId}_${date}.csv`);
-            const data = readCSVData(filePath);
-            
-            if (data.length > 0) {
-                if (!allData[stationId]) {
-                    allData[stationId] = [];
-                }
-                allData[stationId].push(...data);
+    console.log(`📂 找到 ${files.length} 个数据文件\n`);
+
+    // 按站点组织数据
+    files.forEach(filename => {
+        // 从文件名提取站点 ID: weather_58367_2026-01-18.csv
+        const match = filename.match(/weather_(\d+)_/);
+        if (!match) {
+            console.log(`⚠️  跳过无效文件名: ${filename}`);
+            return;
+        }
+
+        const stationId = match[1];
+        if (!STATIONS[stationId]) {
+            console.log(`⚠️  未知站点 ID: ${stationId}`);
+            return;
+        }
+
+        const filePath = path.join(DATA_DIR, filename);
+        const data = parseCSV(filePath);
+
+        if (data.length === 0) {
+            console.log(`⚠️  [${STATIONS[stationId].name}] 无有效数据`);
+            return;
+        }
+
+        // 过滤最近 N 小时的数据
+        const recentData = data.filter(item => {
+            try {
+                const timestamp = new Date(item.timestamp.replace(' ', 'T') + '+08:00');
+                return timestamp.getTime() > cutoffTime;
+            } catch (e) {
+                return false;
             }
         });
+
+        if (!allData[stationId]) {
+            allData[stationId] = [];
+        }
+
+        allData[stationId].push(...recentData);
+        
+        console.log(`✅ [${STATIONS[stationId].name}] 加载 ${data.length} 条记录 (最近 ${hoursToKeep}h: ${recentData.length} 条)`);
     });
-    
+
+    // 对每个站点的数据按时间排序
+    Object.keys(allData).forEach(stationId => {
+        allData[stationId].sort((a, b) => {
+            const timeA = new Date(a.timestamp.replace(' ', 'T') + '+08:00');
+            const timeB = new Date(b.timestamp.replace(' ', 'T') + '+08:00');
+            return timeA - timeB;
+        });
+    });
+
     return allData;
 }
 
-// 转换为JSON格式
-function convertToJSON(allData) {
-    const result = {
-        update_time: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-        stations: STATIONS,
+// 生成 JSON 数据
+function generateJSON() {
+    console.log('\n' + '='.repeat(70));
+    console.log('          📊 生成气象数据 JSON 文件');
+    console.log('='.repeat(70) + '\n');
+
+    // 确保输出目录存在
+    if (!fs.existsSync(OUTPUT_DIR)) {
+        fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+        console.log(`📁 创建输出目录: ${OUTPUT_DIR}\n`);
+    }
+
+    // 读取所有站点数据（保留最近 24 小时）
+    const allData = readAllStationData(24);
+
+    // 构建输出 JSON
+    const output = {
+        update_time: getBeijingTime(),
+        stations: {},
         data: {}
     };
-    
-    Object.entries(allData).forEach(([stationId, records]) => {
-        result.data[stationId] = records.map(record => ({
-            timestamp: record.timestamp,
-            temperature: parseFloat(record.ct) || null,
-            humidity: parseFloat(record.humidity) || null,
-            wind_speed: parseFloat(record.wind_speed) || null,
-            wind_dir: record.wind_dir || null,
-            rainfall: parseFloat(record.rainfall) || null,
-            pressure: parseFloat(record.vaporpressuser) || null,
-            visibility: parseFloat(record.visibility) || null
-        }));
+
+    // 填充站点信息和数据
+    Object.keys(STATIONS).forEach(stationId => {
+        output.stations[stationId] = {
+            name: STATIONS[stationId].name,
+            color: STATIONS[stationId].color
+        };
+
+        output.data[stationId] = allData[stationId] || [];
     });
+
+    // 写入 JSON 文件
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(output, null, 2), 'utf8');
+
+    console.log(`\n${'='.repeat(70)}`);
+    console.log(`✅ JSON 文件已生成: ${OUTPUT_FILE}`);
     
-    return result;
+    // 统计信息
+    const totalRecords = Object.values(output.data).reduce((sum, arr) => sum + arr.length, 0);
+    const stationsWithData = Object.values(output.data).filter(arr => arr.length > 0).length;
+    
+    console.log(`📊 总记录数: ${totalRecords}`);
+    console.log(`🗺️  有数据的站点: ${stationsWithData}/${Object.keys(STATIONS).length}`);
+    console.log(`🕐 更新时间: ${output.update_time}`);
+    console.log(`${'='.repeat(70)}\n`);
+
+    return output;
 }
 
-// 生成主页HTML
-function generateIndexHTML() {
+// 生成简单的 HTML 页面
+function generateHTML(jsonData) {
+    const htmlPath = path.join(OUTPUT_DIR, 'index.html');
+    
     const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上海气象数据实时监测</title>
+    <title>上海气象监测站 - 实时数据</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
         .container {
             max-width: 1400px;
             margin: 0 auto;
-        }
-        
-        .header {
             background: white;
-            border-radius: 12px;
+            border-radius: 20px;
             padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        
         h1 {
-            color: #333;
-            font-size: 32px;
-            margin-bottom: 10px;
             text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
         }
-        
         .update-time {
             text-align: center;
             color: #666;
-            font-size: 14px;
-            margin-top: 10px;
+            margin-bottom: 30px;
+            font-size: 0.9em;
         }
-        
-        .loading {
-            text-align: center;
-            padding: 50px;
-            background: white;
-            border-radius: 12px;
-            color: #666;
-        }
-        
-        .error {
-            background: #fee;
-            border: 2px solid #fcc;
-            color: #c33;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
-        
-        .station-card {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-top: 4px solid #667eea;
-        }
-        
-        .station-card h3 {
-            margin-bottom: 12px;
-            color: #333;
-            font-size: 16px;
-            border-bottom: 2px solid;
-            padding-bottom: 8px;
-        }
-        
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 13px;
-        }
-        
-        .stat-row:last-child {
-            border-bottom: none;
-        }
-        
-        .stat-label {
-            color: #666;
-            font-weight: 500;
-        }
-        
-        .stat-value {
-            color: #333;
-            font-weight: 600;
-        }
-        
-        .chart-container {
-            background: white;
-            border-radius: 12px;
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .chart-wrapper {
-            position: relative;
-            height: 400px;
-            margin-top: 15px;
-        }
-        
-        .section-title {
-            color: #333;
-            font-size: 20px;
-            margin-bottom: 15px;
-            padding-left: 12px;
-            border-left: 4px solid #667eea;
-        }
-        
-        .tab-container {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-        
-        .tab-button {
-            padding: 10px 20px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-        
-        .tab-button:hover {
-            background: #f0f0f0;
-        }
-        
-        .tab-button.active {
-            background: #667eea;
+            border-radius: 15px;
             color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 24px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .chart-wrapper {
-                height: 300px;
-            }
+        .stat-card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        .chart-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .chart-container h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        canvas {
+            max-height: 400px;
+        }
+        .station-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .station-item {
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .station-item h4 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .station-item .latest {
+            font-size: 0.85em;
+            color: #666;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🌤️ 上海气象数据实时监测系统</h1>
-            <div class="update-time" id="updateTime">加载中...</div>
-        </div>
+        <h1>🌤️ 上海气象监测站</h1>
+        <div class="update-time">最后更新: ${jsonData.update_time}</div>
         
-        <div id="error-container"></div>
-        
-        <div id="stats-container" class="stats-grid"></div>
+        <div class="stats-grid" id="statsGrid"></div>
         
         <div class="chart-container">
-            <div class="section-title">数据可视化</div>
-            <div class="tab-container">
-                <button class="tab-button active" onclick="switchChart('pressure')">气压</button>
-                <button class="tab-button" onclick="switchChart('temperature')">温度</button>
-                <button class="tab-button" onclick="switchChart('humidity')">湿度</button>
-                <button class="tab-button" onclick="switchChart('wind')">风速</button>
-                <button class="tab-button" onclick="switchChart('rainfall')">降雨</button>
-                <button class="tab-button" onclick="switchChart('visibility')">能见度</button>
-            </div>
-            <div class="chart-wrapper">
-                <canvas id="mainChart"></canvas>
-            </div>
+            <h2>📈 温度趋势</h2>
+            <canvas id="tempChart"></canvas>
         </div>
+        
+        <div class="chart-container">
+            <h2>💧 湿度趋势</h2>
+            <canvas id="humidityChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h2>🌬️ 风速趋势</h2>
+            <canvas id="windChart"></canvas>
+        </div>
+        
+        <div class="station-list" id="stationList"></div>
     </div>
 
-    <script src="app.js"></script>
+    <script>
+        const weatherData = ${JSON.stringify(jsonData)};
+        
+        // 显示统计卡片
+        function displayStats() {
+            const statsGrid = document.getElementById('statsGrid');
+            const allTemps = [];
+            const allHumidity = [];
+            const allWindSpeed = [];
+            
+            Object.values(weatherData.data).forEach(stationData => {
+                if (stationData.length > 0) {
+                    const latest = stationData[stationData.length - 1];
+                    if (latest.temperature) allTemps.push(latest.temperature);
+                    if (latest.humidity) allHumidity.push(latest.humidity);
+                    if (latest.wind_speed) allWindSpeed.push(latest.wind_speed);
+                }
+            });
+            
+            const avgTemp = allTemps.length ? (allTemps.reduce((a,b) => a+b) / allTemps.length).toFixed(1) : 'N/A';
+            const avgHumidity = allHumidity.length ? (allHumidity.reduce((a,b) => a+b) / allHumidity.length).toFixed(0) : 'N/A';
+            const avgWind = allWindSpeed.length ? (allWindSpeed.reduce((a,b) => a+b) / allWindSpeed.length).toFixed(1) : 'N/A';
+            
+            statsGrid.innerHTML = \`
+                <div class="stat-card">
+                    <h3>平均温度</h3>
+                    <div class="value">\${avgTemp}°C</div>
+                </div>
+                <div class="stat-card">
+                    <h3>平均湿度</h3>
+                    <div class="value">\${avgHumidity}%</div>
+                </div>
+                <div class="stat-card">
+                    <h3>平均风速</h3>
+                    <div class="value">\${avgWind} m/s</div>
+                </div>
+                <div class="stat-card">
+                    <h3>监测站点</h3>
+                    <div class="value">\${Object.keys(weatherData.stations).length}</div>
+                </div>
+            \`;
+        }
+        
+        // 创建图表
+        function createChart(canvasId, label, dataKey) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const datasets = [];
+            
+            Object.keys(weatherData.data).forEach(stationId => {
+                const stationData = weatherData.data[stationId];
+                if (stationData.length === 0) return;
+                
+                const data = stationData.map(d => ({
+                    x: d.timestamp,
+                    y: d[dataKey]
+                })).filter(d => d.y !== null);
+                
+                if (data.length > 0) {
+                    datasets.push({
+                        label: weatherData.stations[stationId].name,
+                        data: data,
+                        borderColor: weatherData.stations[stationId].color,
+                        backgroundColor: weatherData.stations[stationId].color + '20',
+                        tension: 0.4,
+                        fill: false
+                    });
+                }
+            });
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'hour' },
+                            title: { display: true, text: '时间' }
+                        },
+                        y: {
+                            title: { display: true, text: label }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+        
+        // 显示站点列表
+        function displayStations() {
+            const stationList = document.getElementById('stationList');
+            let html = '';
+            
+            Object.keys(weatherData.stations).forEach(stationId => {
+                const station = weatherData.stations[stationId];
+                const data = weatherData.data[stationId];
+                const latest = data.length > 0 ? data[data.length - 1] : null;
+                
+                html += \`
+                    <div class="station-item" style="border-left-color: \${station.color}">
+                        <h4>\${station.name}</h4>
+                        \${latest ? \`
+                            <div class="latest">
+                                🌡️ \${latest.temperature}°C<br>
+                                💧 \${latest.humidity}%<br>
+                                🌬️ \${latest.wind_speed} m/s
+                            </div>
+                        \` : '<div class="latest">暂无数据</div>'}
+                    </div>
+                \`;
+            });
+            
+            stationList.innerHTML = html;
+        }
+        
+        // 初始化
+        displayStats();
+        createChart('tempChart', '温度 (°C)', 'temperature');
+        createChart('humidityChart', '湿度 (%)', 'humidity');
+        createChart('windChart', '风速 (m/s)', 'wind_speed');
+        displayStations();
+    </script>
 </body>
 </html>`;
 
-    fs.writeFileSync(path.join(OUTPUT_DIR, 'index.html'), html, 'utf8');
-}
-
-// 生成app.js
-function generateAppJS() {
-    const js = `
-let currentChart = null;
-let weatherData = null;
-
-// 自定义 tooltip
-const getOrCreateTooltip = (chart) => {
-    let tooltipEl = chart.canvas.parentNode.querySelector('div.chartjs-tooltip');
-    if (!tooltipEl) {
-        tooltipEl = document.createElement('div');
-        tooltipEl.className = 'chartjs-tooltip';
-        tooltipEl.style.cssText = 'background:rgba(0,0,0,0.8);border-radius:3px;color:white;opacity:1;pointer-events:none;position:absolute;transform:translate(-50%,0);transition:all .1s ease;padding:8px;font-size:12px;min-width:120px;max-width:200px;z-index:1000';
-        
-        const table = document.createElement('table');
-        table.style.margin = '0px';
-        table.style.width = '100%';
-        tooltipEl.appendChild(table);
-        chart.canvas.parentNode.appendChild(tooltipEl);
-    }
-    return tooltipEl;
-};
-
-const externalTooltipHandler = (context) => {
-    const {chart, tooltip} = context;
-    const tooltipEl = getOrCreateTooltip(chart);
-
-    if (tooltip.opacity === 0) {
-        tooltipEl.style.opacity = 0;
-        return;
-    }
-
-    if (tooltip.body) {
-        const titleLines = tooltip.title || [];
-        const dataPoints = tooltip.dataPoints.map(item => ({
-            label: item.dataset.label,
-            value: item.parsed.y,
-            color: item.dataset.borderColor
-        })).sort((a, b) => {
-            if (a.value === null) return 1;
-            if (b.value === null) return -1;
-            return b.value - a.value;
-        });
-
-        const tableHead = document.createElement('thead');
-        titleLines.forEach(title => {
-            const tr = document.createElement('tr');
-            tr.style.borderWidth = 0;
-            const th = document.createElement('th');
-            th.style.cssText = 'border-width:0;padding-bottom:4px;text-align:left';
-            th.appendChild(document.createTextNode(title));
-            tr.appendChild(th);
-            tableHead.appendChild(tr);
-        });
-
-        const tableBody = document.createElement('tbody');
-        dataPoints.forEach(point => {
-            const tr = document.createElement('tr');
-            tr.style.cssText = 'background-color:inherit;border-width:0';
-            const td = document.createElement('td');
-            td.style.cssText = 'border-width:0;padding-top:2px;padding-bottom:2px;white-space:nowrap';
-
-            const colorBox = document.createElement('span');
-            colorBox.style.cssText = \`background:\${point.color};border:2px solid \${point.color};margin-right:6px;height:10px;width:10px;display:inline-block\`;
-            
-            const text = document.createTextNode(
-                point.label + ': ' + 
-                (point.value !== null && point.value !== undefined ? point.value.toFixed(1) : '--')
-            );
-
-            td.appendChild(colorBox);
-            td.appendChild(text);
-            tr.appendChild(td);
-            tableBody.appendChild(tr);
-        });
-
-        const tableRoot = tooltipEl.querySelector('table');
-        while (tableRoot.firstChild) {
-            tableRoot.firstChild.remove();
-        }
-        tableRoot.appendChild(tableHead);
-        tableRoot.appendChild(tableBody);
-    }
-
-    const {offsetLeft: positionX, offsetTop: positionY} = chart.canvas;
-    tooltipEl.style.opacity = 1;
-    
-    const tooltipWidth = tooltipEl.offsetWidth;
-    const chartWidth = chart.width;
-    let leftPos = positionX + tooltip.caretX;
-    
-    if (tooltip.caretX + tooltipWidth / 2 > chartWidth) {
-        tooltipEl.style.transform = 'translate(-100%, 0)';
-    } else if (tooltip.caretX - tooltipWidth / 2 < 0) {
-        tooltipEl.style.transform = 'translate(0, 0)';
-    } else {
-        tooltipEl.style.transform = 'translate(-50%, 0)';
-    }
-    
-    tooltipEl.style.left = leftPos + 'px';
-    tooltipEl.style.top = positionY + tooltip.caretY + 'px';
-};
-
-// 加载数据
-async function loadData() {
-    try {
-        const response = await fetch('data/weather_data.json?t=' + Date.now());
-        if (!response.ok) throw new Error('数据加载失败');
-        
-        weatherData = await response.json();
-        document.getElementById('updateTime').textContent = 
-            \`最后更新: \${weatherData.update_time}\`;
-        
-        renderStats();
-        switchChart('pressure');
-    } catch (error) {
-        console.error('Error:', error);
-        document.getElementById('error-container').innerHTML = 
-            \`<div class="error">数据加载失败: \${error.message}</div>\`;
-    }
-}
-
-// 渲染统计卡片
-function renderStats() {
-    const container = document.getElementById('stats-container');
-    let html = '';
-    
-    Object.entries(weatherData.stations).forEach(([stationId, info]) => {
-        const data = weatherData.data[stationId] || [];
-        if (data.length === 0) {
-            html += \`<div class="station-card">
-                <h3 style="border-color:\${info.color}">\${info.name}</h3>
-                <p style="text-align:center;color:#999;font-size:12px">暂无数据</p>
-            </div>\`;
-            return;
-        }
-        
-        const latest = data[data.length - 1];
-        html += \`<div class="station-card">
-            <h3 style="border-color:\${info.color}">\${info.name}</h3>
-            <div class="stat-row">
-                <span class="stat-label">温度</span>
-                <span class="stat-value">\${latest.temperature?.toFixed(1) || '--'} °C</span>
-            </div>
-            <div class="stat-row">
-                <span class="stat-label">湿度</span>
-                <span class="stat-value">\${latest.humidity?.toFixed(0) || '--'} %</span>
-            </div>
-            <div class="stat-row">
-                <span class="stat-label">气压</span>
-                <span class="stat-value">\${latest.pressure?.toFixed(1) || '--'} hPa</span>
-            </div>
-            <div class="stat-row">
-                <span class="stat-label">风速</span>
-                <span class="stat-value">\${latest.wind_speed?.toFixed(1) || '--'} m/s</span>
-            </div>
-        </div>\`;
-    });
-    
-    container.innerHTML = html;
-}
-
-// 切换图表
-function switchChart(type) {
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    const fieldMap = {
-        'pressure': { field: 'pressure', label: '气压 (hPa)' },
-        'temperature': { field: 'temperature', label: '温度 (°C)' },
-        'humidity': { field: 'humidity', label: '湿度 (%)' },
-        'wind': { field: 'wind_speed', label: '风速 (m/s)' },
-        'rainfall': { field: 'rainfall', label: '降雨量 (mm)' },
-        'visibility': { field: 'visibility', label: '能见度 (m)' }
-    };
-    
-    const config = fieldMap[type];
-    renderChart(config.field, config.label);
-}
-
-// 渲染图表
-function renderChart(field, label) {
-    if (currentChart) {
-        currentChart.destroy();
-    }
-    
-    const datasets = [];
-    Object.entries(weatherData.stations).forEach(([stationId, info]) => {
-        const data = weatherData.data[stationId] || [];
-        if (data.length === 0) return;
-        
-        datasets.push({
-            label: info.name,
-            data: data.map(d => ({
-                x: d.timestamp,
-                y: d[field]
-            })),
-            borderColor: info.color,
-            backgroundColor: info.color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
-            tension: 0.4,
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 0,
-            pointHoverRadius: 4
-        });
-    });
-    
-    const ctx = document.getElementById('mainChart').getContext('2d');
-    currentChart = new Chart(ctx, {
-        type: 'line',
-        data: { datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 8,
-                        font: { size: 11 }
-                    }
-                },
-                tooltip: {
-                    enabled: false,
-                    external: externalTooltipHandler
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: 'hour',
-                        displayFormats: {
-                            hour: 'HH:mm'
-                        }
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: label
-                    }
-                }
-            }
-        }
-    });
-}
-
-// 初始化
-window.addEventListener('load', loadData);
-setInterval(loadData, 5 * 60 * 1000); // 每5分钟刷新
-`;
-
-    fs.writeFileSync(path.join(OUTPUT_DIR, 'app.js'), js, 'utf8');
+    fs.writeFileSync(htmlPath, html, 'utf8');
+    console.log(`✅ HTML 页面已生成: ${htmlPath}\n`);
 }
 
 // 主函数
 function main() {
-    console.log('开始生成网页...');
-    
-    // 确保输出目录存在
-    if (!fs.existsSync(OUTPUT_DIR)) {
-        fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    try {
+        const jsonData = generateJSON();
+        generateHTML(jsonData);
+        console.log('🎉 所有文件生成完成！\n');
+    } catch (error) {
+        console.error('❌ 生成失败:', error);
+        process.exit(1);
     }
-    
-    const dataOutputDir = path.join(OUTPUT_DIR, 'data');
-    if (!fs.existsSync(dataOutputDir)) {
-        fs.mkdirSync(dataOutputDir, { recursive: true });
-    }
-    
-    // 收集数据
-    console.log('收集数据...');
-    const allData = collectAllData();
-    
-    // 转换并保存JSON
-    console.log('生成JSON数据...');
-    const jsonData = convertToJSON(allData);
-    fs.writeFileSync(
-        path.join(dataOutputDir, 'weather_data.json'),
-        JSON.stringify(jsonData, null, 2),
-        'utf8'
-    );
-    
-    // 生成HTML和JS
-    console.log('生成网页文件...');
-    generateIndexHTML();
-    generateAppJS();
-    
-    console.log('✅ 网页生成完成！');
-    console.log(`📁 输出目录: ${OUTPUT_DIR}`);
-    console.log(`📊 数据点数: ${Object.values(allData).reduce((sum, arr) => sum + arr.length, 0)}`);
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = { generateJSON, generateHTML };
