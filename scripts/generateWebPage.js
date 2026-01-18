@@ -51,19 +51,19 @@ function parseCSV(filePath) {
         // 跳过表头
         const dataLines = lines.slice(1);
         
+        // CSV格式：timestamp,temperature,humidity,wind_speed,wind_dir,rainfall,pressure,visibility
         const data = dataLines.map(line => {
             const parts = line.split(',');
             
-            // 解析数据
             return {
                 timestamp: parts[0] || null,
-                temperature: parts[4] ? parseFloat(parts[4]) : null,  // ct
-                humidity: parts[3] ? parseInt(parts[3]) : null,       // humidity
-                wind_speed: parts[1] ? parseFloat(parts[1]) : null,   // wind_speed
-                wind_dir: parts[5] || null,                            // wind_dir (来自 upt)
-                rainfall: parts[2] ? parseFloat(parts[2]) : null,     // rainfall
-                pressure: parts[6] ? parseFloat(parts[6]) : null,     // vaporpressuser
-                visibility: parts[7] ? parseInt(parts[7]) : null      // visibility
+                temperature: parts[1] ? parseFloat(parts[1]) : null,
+                humidity: parts[2] ? parseInt(parts[2]) : null,
+                wind_speed: parts[3] ? parseFloat(parts[3]) : null,
+                wind_dir: parts[4] || null,
+                rainfall: parts[5] ? parseFloat(parts[5]) : null,
+                pressure: parts[6] ? parseFloat(parts[6]) : null,
+                visibility: parts[7] ? parseInt(parts[7]) : null
             };
         }).filter(item => item.timestamp); // 过滤掉无效数据
 
@@ -78,6 +78,11 @@ function parseCSV(filePath) {
 function readAllStationData(hoursToKeep = 24) {
     const allData = {};
     const cutoffTime = Date.now() - (hoursToKeep * 60 * 60 * 1000);
+
+    if (!fs.existsSync(DATA_DIR)) {
+        console.error(`❌ 数据目录不存在: ${DATA_DIR}`);
+        return allData;
+    }
 
     // 获取所有 CSV 文件
     const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.csv'));
@@ -422,7 +427,7 @@ function generateHTML(jsonData) {
                             <div class="latest">
                                 🌡️ \${latest.temperature}°C<br>
                                 💧 \${latest.humidity}%<br>
-                                🌬️ \${latest.wind_speed} m/s
+                                🌬️ \${latest.wind_speed} m/s \${latest.wind_dir || ''}
                             </div>
                         \` : '<div class="latest">暂无数据</div>'}
                     </div>
