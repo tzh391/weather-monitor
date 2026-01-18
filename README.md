@@ -23,7 +23,7 @@
 git clone https://github.com/tzh391/weather-monitor.git
 cd仓库名
 
-# 运行数据采集（需要持续运行）
+# 运行数据采集（需持续运行）
 node scripts/dataCollector.js
 
 # 生成网页（在另一个终端）
