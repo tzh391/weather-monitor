@@ -28,9 +28,22 @@ const STATIONS = {
 const DATA_DIR = path.join(process.cwd(), 'weather_data');
 
 // 确保目录存在
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    console.log(`📁 创建数据目录: ${DATA_DIR}`);
+function ensureDataDir() {
+    if (!fs.existsSync(DATA_DIR)) {
+        console.log(`📁 创建数据目录: ${DATA_DIR}`);
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    
+    // 验证目录是否可写
+    try {
+        const testFile = path.join(DATA_DIR, '.test');
+        fs.writeFileSync(testFile, 'test', 'utf8');
+        fs.unlinkSync(testFile);
+        console.log(`✅ 数据目录可写: ${DATA_DIR}`);
+    } catch (error) {
+        console.error(`❌ 数据目录不可写: ${error.message}`);
+        throw error;
+    }
 }
 
 // 获取东八区时间字符串
@@ -63,7 +76,15 @@ function ensureCSVFile(filePath) {
     if (!fs.existsSync(filePath)) {
         const header = 'timestamp,temperature,humidity,wind_speed,wind_dir,rainfall,pressure,visibility\n';
         fs.writeFileSync(filePath, header, 'utf8');
-        console.log(`📄 创建新文件: ${path.basename(filePath)}`);
+        console.log(`📄 创建新文件: ${filePath}`);
+        
+        // 验证文件已创建
+        if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, 'utf8');
+            console.log(`✅ 文件验证成功，大小: ${content.length} 字节`);
+        } else {
+            console.error(`❌ 文件创建失败: ${filePath}`);
+        }
         return true;
     }
     return false;
@@ -128,6 +149,8 @@ function fetchWeatherData(stationId) {
 // 保存数据到CSV
 function saveDataToCSV(weatherData, stationId) {
     const filePath = getDataFileName(stationId);
+    console.log(`📝 准备写入文件: ${filePath}`);
+    
     const isNewFile = ensureCSVFile(filePath);
 
     if (weatherData.h && weatherData.h.is !== 0) {
@@ -146,26 +169,41 @@ function saveDataToCSV(weatherData, stationId) {
     // CSV格式：timestamp,temperature,humidity,wind_speed,wind_dir,rainfall,pressure,visibility
     const row = [
         timestamp,
-        data.ct || '',              // temperature (实际温度)
-        data.humidity || '',        // humidity
-        data.wind_speed || '',      // wind_speed
-        data.wind_dir || '',        // wind_dir (风向)
-        data.rainfall || '',        // rainfall
-        data.vaporpressuser || '',  // pressure (气压)
-        data.visibility || ''       // visibility
+        data.ct || '',
+        data.humidity || '',
+        data.wind_speed || '',
+        data.wind_dir || '',
+        data.rainfall || '',
+        data.vaporpressuser || '',
+        data.visibility || ''
     ].join(',') + '\n';
 
     try {
+        // 写入前检查文件状态
+        const statsBefore = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+        console.log(`📊 写入前文件大小: ${statsBefore ? statsBefore.size : 0} 字节`);
+        
         fs.appendFileSync(filePath, row, 'utf8');
         
-        // 打印成功信息
+        // 写入后验证
+        const statsAfter = fs.statSync(filePath);
+        console.log(`📊 写入后文件大小: ${statsAfter.size} 字节`);
+        
+        // 读取最后一行验证
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines = content.trim().split('\n');
+        const lastLine = lines[lines.length - 1];
+        
         const emoji = isNewFile ? '🆕' : '✅';
         console.log(`${emoji} [${STATIONS[stationId].name}] ${timestamp}`);
         console.log(`   🌡️  ${data.ct}°C | 💧 ${data.humidity}% | 🌬️  ${data.wind_speed} m/s ${data.wind_dir || ''} | 🌧️  ${data.rainfall || 0} mm`);
+        console.log(`   📄 文件: ${path.basename(filePath)} (${lines.length} 行)`);
+        console.log(`   📝 最后一行: ${lastLine.substring(0, 80)}...`);
         
         return true;
     } catch (error) {
         console.error(`❌ [${STATIONS[stationId].name}] 写入文件失败: ${error.message}`);
+        console.error(`   错误堆栈: ${error.stack}`);
         return false;
     }
 }
@@ -176,20 +214,26 @@ async function collectData() {
     console.log(`🌤️  上海气象数据采集 - ${getBeijingTime()}`);
     console.log(`${'='.repeat(70)}\n`);
     
+    // 确保数据目录存在
+    ensureDataDir();
+    
     const stationIds = Object.keys(STATIONS);
     let successCount = 0;
     let failedStations = [];
     
     for (const stationId of stationIds) {
         try {
+            console.log(`\n🔄 正在采集 [${STATIONS[stationId].name}] ...`);
             const weatherData = await fetchWeatherData(stationId);
+            
             if (saveDataToCSV(weatherData, stationId)) {
                 successCount++;
             } else {
                 failedStations.push(STATIONS[stationId].name);
             }
-            // 每个请求之间延迟2秒，避免请求过快
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // 每个请求之间延迟1秒
+            await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
             console.error(`❌ [${STATIONS[stationId].name}] ${error.message}`);
             failedStations.push(STATIONS[stationId].name);
@@ -204,10 +248,18 @@ async function collectData() {
     console.log(`📁 数据保存于: ${DATA_DIR}`);
     
     // 列出生成的文件
-    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.csv'));
-    console.log(`📄 CSV 文件数: ${files.length}`);
-    files.slice(0, 3).forEach(f => console.log(`   - ${f}`));
-    if (files.length > 3) console.log(`   ... 还有 ${files.length - 3} 个文件`);
+    try {
+        const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.csv'));
+        console.log(`📄 CSV 文件数: ${files.length}`);
+        files.forEach(f => {
+            const filePath = path.join(DATA_DIR, f);
+            const stats = fs.statSync(filePath);
+            const lines = fs.readFileSync(filePath, 'utf8').trim().split('\n').length;
+            console.log(`   - ${f} (${stats.size} 字节, ${lines} 行)`);
+        });
+    } catch (error) {
+        console.error(`❌ 列出文件失败: ${error.message}`);
+    }
     
     console.log(`${'='.repeat(70)}\n`);
     
@@ -224,13 +276,26 @@ async function main() {
     console.log(`🌐 API: http://${API_URL}:${API_PORT}${API_PATH}`);
     console.log(`📊 监测站点: ${Object.keys(STATIONS).length}个`);
     console.log(`🕐 时区: 东八区 (UTC+8)`);
+    console.log(`🖥️  运行环境: ${process.platform} ${process.arch}`);
+    console.log(`🔧 Node.js: ${process.version}`);
+    console.log(`📂 工作目录: ${process.cwd()}`);
     console.log('='.repeat(70) + '\n');
     
     try {
         const exitCode = await collectData();
+        
+        // 最后验证
+        console.log('\n🔍 最终验证:');
+        console.log(`数据目录存在: ${fs.existsSync(DATA_DIR)}`);
+        if (fs.existsSync(DATA_DIR)) {
+            const files = fs.readdirSync(DATA_DIR);
+            console.log(`文件总数: ${files.length}`);
+        }
+        
         process.exit(exitCode);
     } catch (error) {
         console.error('❌ 程序执行错误:', error);
+        console.error('错误堆栈:', error.stack);
         process.exit(1);
     }
 }
