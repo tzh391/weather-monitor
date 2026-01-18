@@ -1,5 +1,5 @@
 {
-  "update_time": "2026/01/18 19:51:47",
+  "update_time": "2026/01/18 20:01:33",
   "stations": {
     "58361": {
       "name": "闵行",
@@ -57,158 +57,158 @@
   "data": {
     "58361": [
       {
-        "timestamp": "2026-01-18 19:51:29",
-        "temperature": 13.3,
-        "humidity": 80,
-        "wind_speed": 1.7,
+        "timestamp": "2026-01-18 20:01:15",
+        "temperature": 13.2,
+        "humidity": 81,
+        "wind_speed": 3.2,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1018.7,
-        "visibility": 10065
+        "visibility": 9940
       }
     ],
     "58362": [
       {
-        "timestamp": "2026-01-18 19:51:31",
-        "temperature": 11.6,
+        "timestamp": "2026-01-18 20:01:17",
+        "temperature": 11.5,
         "humidity": 81,
-        "wind_speed": 2.9,
-        "wind_dir": "东北",
-        "rainfall": 0,
-        "pressure": 1018.7,
-        "visibility": 13759
-      }
-    ],
-    "58363": [
-      {
-        "timestamp": "2026-01-18 19:51:32",
-        "temperature": 9.8,
-        "humidity": 92,
-        "wind_speed": 7.1,
-        "wind_dir": "西北",
-        "rainfall": 0,
-        "pressure": 1017.6,
-        "visibility": 12837
-      }
-    ],
-    "58365": [
-      {
-        "timestamp": "2026-01-18 19:51:33",
-        "temperature": 11.9,
-        "humidity": 79,
         "wind_speed": 3.8,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1018.8,
-        "visibility": 8197
+        "visibility": 13254
+      }
+    ],
+    "58363": [
+      {
+        "timestamp": "2026-01-18 20:01:18",
+        "temperature": 9.5,
+        "humidity": 92,
+        "wind_speed": 9.2,
+        "wind_dir": "西北",
+        "rainfall": 0,
+        "pressure": 1017.9,
+        "visibility": 13469
+      }
+    ],
+    "58365": [
+      {
+        "timestamp": "2026-01-18 20:01:20",
+        "temperature": 11.9,
+        "humidity": 79,
+        "wind_speed": 2.5,
+        "wind_dir": "东北",
+        "rainfall": 0,
+        "pressure": 1018.9,
+        "visibility": 8833
       }
     ],
     "58366": [
       {
-        "timestamp": "2026-01-18 19:51:35",
-        "temperature": 10.2,
-        "humidity": 84,
-        "wind_speed": 3.9,
+        "timestamp": "2026-01-18 20:01:21",
+        "temperature": 10.1,
+        "humidity": 85,
+        "wind_speed": 5.2,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1019.8,
-        "visibility": 13892
+        "visibility": 13322
       }
     ],
     "58367": [
       {
-        "timestamp": "2026-01-18 19:51:36",
+        "timestamp": "2026-01-18 20:01:22",
         "temperature": 13.3,
         "humidity": 80,
-        "wind_speed": 1.5,
+        "wind_speed": 0.9,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1018.9,
-        "visibility": 10473
+        "visibility": 10670
       }
     ],
     "58369": [
       {
-        "timestamp": "2026-01-18 19:51:37",
-        "temperature": 10.2,
+        "timestamp": "2026-01-18 20:01:24",
+        "temperature": 10.3,
         "humidity": 99,
-        "wind_speed": 2.3,
+        "wind_speed": 1.6,
         "wind_dir": "东北",
         "rainfall": 0,
-        "pressure": 1019,
-        "visibility": 10301
+        "pressure": 1019.1,
+        "visibility": 10049
       }
     ],
     "58370": [
       {
-        "timestamp": "2026-01-18 19:51:39",
-        "temperature": 12.4,
-        "humidity": 84,
+        "timestamp": "2026-01-18 20:01:25",
+        "temperature": 12.2,
+        "humidity": 85,
         "wind_speed": 1.4,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1019,
-        "visibility": 11455
+        "visibility": 11111
       }
     ],
     "58460": [
       {
-        "timestamp": "2026-01-18 19:51:40",
+        "timestamp": "2026-01-18 20:01:27",
         "temperature": 13,
         "humidity": 85,
-        "wind_speed": 1.2,
+        "wind_speed": 1.5,
         "wind_dir": "东北",
         "rainfall": 0,
-        "pressure": 1018.4,
-        "visibility": 8166
+        "pressure": 1018.5,
+        "visibility": 8261
       }
     ],
     "58461": [
       {
-        "timestamp": "2026-01-18 19:51:42",
+        "timestamp": "2026-01-18 20:01:28",
         "temperature": 13.5,
         "humidity": 78,
-        "wind_speed": 1.1,
+        "wind_speed": 2,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1018.8,
-        "visibility": 11091
+        "visibility": 10532
       }
     ],
     "58462": [
       {
-        "timestamp": "2026-01-18 19:51:43",
+        "timestamp": "2026-01-18 20:01:29",
         "temperature": 13.7,
-        "humidity": 78,
-        "wind_speed": 3.1,
+        "humidity": 79,
+        "wind_speed": 3.3,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1018.3,
-        "visibility": 8938
+        "visibility": 8844
       }
     ],
     "58463": [
       {
-        "timestamp": "2026-01-18 19:51:44",
-        "temperature": 13.1,
+        "timestamp": "2026-01-18 20:01:31",
+        "temperature": 13,
         "humidity": 82,
-        "wind_speed": 1.6,
+        "wind_speed": 2.8,
         "wind_dir": "东北",
         "rainfall": 0,
         "pressure": 1018.8,
-        "visibility": 6806
+        "visibility": 6934
       }
     ],
     "58474": [
       {
-        "timestamp": "2026-01-18 19:51:46",
+        "timestamp": "2026-01-18 20:01:32",
         "temperature": 10.5,
-        "humidity": 94,
-        "wind_speed": 4.3,
+        "humidity": 95,
+        "wind_speed": 3.7,
         "wind_dir": "东北",
         "rainfall": 0,
-        "pressure": 1011.9,
-        "visibility": 8296
+        "pressure": 1012,
+        "visibility": 8292
       }
     ]
   }
