@@ -1,0 +1,215 @@
+{
+  "update_time": "2026/01/18 10:13:06",
+  "stations": {
+    "58361": {
+      "name": "闵行",
+      "color": "rgb(54, 162, 235)"
+    },
+    "58362": {
+      "name": "宝山",
+      "color": "rgb(75, 192, 192)"
+    },
+    "58363": {
+      "name": "长江口",
+      "color": "rgb(153, 102, 255)"
+    },
+    "58365": {
+      "name": "嘉定",
+      "color": "rgb(255, 159, 64)"
+    },
+    "58366": {
+      "name": "崇明",
+      "color": "rgb(255, 205, 86)"
+    },
+    "58367": {
+      "name": "徐家汇",
+      "color": "rgb(255, 99, 132)"
+    },
+    "58369": {
+      "name": "南汇",
+      "color": "rgb(201, 203, 207)"
+    },
+    "58370": {
+      "name": "浦东",
+      "color": "rgb(100, 181, 246)"
+    },
+    "58460": {
+      "name": "金山",
+      "color": "rgb(239, 83, 80)"
+    },
+    "58461": {
+      "name": "青浦",
+      "color": "rgb(171, 71, 188)"
+    },
+    "58462": {
+      "name": "松江",
+      "color": "rgb(255, 112, 67)"
+    },
+    "58463": {
+      "name": "奉贤",
+      "color": "rgb(38, 198, 218)"
+    },
+    "58474": {
+      "name": "小洋山",
+      "color": "rgb(102, 187, 106)"
+    }
+  },
+  "data": {
+    "58361": [
+      {
+        "timestamp": "2026-01-18 10:12:07",
+        "temperature": null,
+        "humidity": 72,
+        "wind_speed": 2.2,
+        "wind_dir": "12.6",
+        "rainfall": 0,
+        "pressure": 1019.2,
+        "visibility": 14312
+      }
+    ],
+    "58362": [
+      {
+        "timestamp": "2026-01-18 10:12:08",
+        "temperature": null,
+        "humidity": 77,
+        "wind_speed": 5.5,
+        "wind_dir": "10.8",
+        "rainfall": 0,
+        "pressure": 1019,
+        "visibility": 16477
+      }
+    ],
+    "58363": [
+      {
+        "timestamp": "2026-01-18 10:12:10",
+        "temperature": null,
+        "humidity": 89,
+        "wind_speed": 5.1,
+        "wind_dir": "9.9",
+        "rainfall": 0,
+        "pressure": 1018.1,
+        "visibility": 13208
+      }
+    ],
+    "58365": [
+      {
+        "timestamp": "2026-01-18 10:12:11",
+        "temperature": null,
+        "humidity": 74,
+        "wind_speed": 5.3,
+        "wind_dir": "11.8",
+        "rainfall": 0,
+        "pressure": 1019.2,
+        "visibility": 10848
+      }
+    ],
+    "58366": [
+      {
+        "timestamp": "2026-01-18 10:12:12",
+        "temperature": null,
+        "humidity": 79,
+        "wind_speed": 5.5,
+        "wind_dir": "10.4",
+        "rainfall": 0,
+        "pressure": 1019.9,
+        "visibility": 19456
+      }
+    ],
+    "58367": [
+      {
+        "timestamp": "2026-01-18 10:12:14",
+        "temperature": null,
+        "humidity": 77,
+        "wind_speed": 2.9,
+        "wind_dir": "11.8",
+        "rainfall": 0,
+        "pressure": 1019.4,
+        "visibility": 11961
+      }
+    ],
+    "58369": [
+      {
+        "timestamp": "2026-01-18 10:12:15",
+        "temperature": null,
+        "humidity": 88,
+        "wind_speed": 3.8,
+        "wind_dir": "11.8",
+        "rainfall": 0,
+        "pressure": 1019.4,
+        "visibility": 10839
+      }
+    ],
+    "58370": [
+      {
+        "timestamp": "2026-01-18 10:12:16",
+        "temperature": null,
+        "humidity": 80,
+        "wind_speed": 3.8,
+        "wind_dir": "11.4",
+        "rainfall": 0,
+        "pressure": 1019.4,
+        "visibility": 13372
+      }
+    ],
+    "58460": [
+      {
+        "timestamp": "2026-01-18 10:12:17",
+        "temperature": null,
+        "humidity": 77,
+        "wind_speed": 3.2,
+        "wind_dir": "12.6",
+        "rainfall": 0,
+        "pressure": 1019,
+        "visibility": 9263
+      }
+    ],
+    "58461": [
+      {
+        "timestamp": "2026-01-18 10:12:19",
+        "temperature": null,
+        "humidity": 74,
+        "wind_speed": 3.8,
+        "wind_dir": "12.6",
+        "rainfall": 0,
+        "pressure": 1019.3,
+        "visibility": 13604
+      }
+    ],
+    "58462": [
+      {
+        "timestamp": "2026-01-18 10:12:20",
+        "temperature": null,
+        "humidity": 73,
+        "wind_speed": 3.5,
+        "wind_dir": "12.4",
+        "rainfall": 0,
+        "pressure": 1018.9,
+        "visibility": 9799
+      }
+    ],
+    "58463": [
+      {
+        "timestamp": "2026-01-18 10:12:21",
+        "temperature": null,
+        "humidity": 74,
+        "wind_speed": 4.8,
+        "wind_dir": "12.8",
+        "rainfall": 0,
+        "pressure": 1019.3,
+        "visibility": 11893
+      }
+    ],
+    "58474": [
+      {
+        "timestamp": "2026-01-18 10:12:22",
+        "temperature": null,
+        "humidity": 88,
+        "wind_speed": 3.8,
+        "wind_dir": "11.6",
+        "rainfall": 0,
+        "pressure": 1012.6,
+        "visibility": 14992
+      }
+    ]
+  }
+}
