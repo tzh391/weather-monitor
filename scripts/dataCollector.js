@@ -9,19 +9,19 @@ const API_PATH = '/ztq_sh_jc/service.do';
 
 // 站点配置 - 13个站点
 const STATIONS = {
-    '58367': { name: '徐家汇', id: '58367' },
-    '58361': { name: '闵行', id: '58361' },
-    '58362': { name: '宝山', id: '58362' },
-    '58363': { name: '长江口', id: '58363' },
-    '58365': { name: '嘉定', id: '58365' },
-    '58366': { name: '崇明', id: '58366' },
-    '58369': { name: '南汇', id: '58369' },
-    '58370': { name: '浦东', id: '58370' },
-    '58460': { name: '金山', id: '58460' },
-    '58461': { name: '青浦', id: '58461' },
-    '58462': { name: '松江', id: '58462' },
-    '58463': { name: '奉贤', id: '58463' },
-    '58474': { name: '小洋山', id: '58474' }
+    '58367': { name: '徐家汇', color: 'rgb(255, 99, 132)' },
+    '58361': { name: '闵行', color: 'rgb(54, 162, 235)' },
+    '58362': { name: '宝山', color: 'rgb(75, 192, 192)' },
+    '58363': { name: '长江口', color: 'rgb(153, 102, 255)' },
+    '58365': { name: '嘉定', color: 'rgb(255, 159, 64)' },
+    '58366': { name: '崇明', color: 'rgb(255, 205, 86)' },
+    '58369': { name: '南汇', color: 'rgb(201, 203, 207)' },
+    '58370': { name: '浦东', color: 'rgb(100, 181, 246)' },
+    '58460': { name: '金山', color: 'rgb(239, 83, 80)' },
+    '58461': { name: '青浦', color: 'rgb(171, 71, 188)' },
+    '58462': { name: '松江', color: 'rgb(255, 112, 67)' },
+    '58463': { name: '奉贤', color: 'rgb(38, 198, 218)' },
+    '58474': { name: '小洋山', color: 'rgb(102, 187, 106)' }
 };
 
 // 数据存储目录 - 相对于项目根目录
@@ -61,10 +61,12 @@ function getDataFileName(stationId) {
 // 确保CSV文件存在并有表头
 function ensureCSVFile(filePath) {
     if (!fs.existsSync(filePath)) {
-        const header = 'timestamp,wind_speed,rainfall,humidity,wind_dir,ct,vaporpressuser,visibility,upt\n';
+        const header = 'timestamp,temperature,humidity,wind_speed,wind_dir,rainfall,pressure,visibility\n';
         fs.writeFileSync(filePath, header, 'utf8');
         console.log(`📄 创建新文件: ${path.basename(filePath)}`);
+        return true;
     }
+    return false;
 }
 
 // 发送GET请求获取气象数据
@@ -87,9 +89,10 @@ function fetchWeatherData(stationId) {
             path: url,
             method: 'GET',
             headers: {
-                'User-Agent': 'GitHub Actions Weather Collector'
+                'User-Agent': 'GitHub Actions Weather Collector',
+                'Accept': 'application/json'
             },
-            timeout: 15000  // 增加超时时间
+            timeout: 15000
         };
 
         const req = http.request(options, (res) => {
@@ -125,7 +128,7 @@ function fetchWeatherData(stationId) {
 // 保存数据到CSV
 function saveDataToCSV(weatherData, stationId) {
     const filePath = getDataFileName(stationId);
-    ensureCSVFile(filePath);
+    const isNewFile = ensureCSVFile(filePath);
 
     if (weatherData.h && weatherData.h.is !== 0) {
         console.error(`❌ [${STATIONS[stationId].name}] API错误: ${weatherData.h.error}`);
@@ -140,23 +143,31 @@ function saveDataToCSV(weatherData, stationId) {
     const data = weatherData.b.fycx_sstq;
     const timestamp = getBeijingTime();
 
+    // CSV格式：timestamp,temperature,humidity,wind_speed,wind_dir,rainfall,pressure,visibility
     const row = [
         timestamp,
-        data.wind_speed || '',
-        data.rainfall || '',
-        data.humidity || '',
-        data.wind_dir || '',
-        data.ct || '',
-        data.vaporpressuser || '',
-        data.visibility || '',
-        data.upt || ''
+        data.ct || '',              // temperature (实际温度)
+        data.humidity || '',        // humidity
+        data.wind_speed || '',      // wind_speed
+        data.wind_dir || '',        // wind_dir (风向)
+        data.rainfall || '',        // rainfall
+        data.vaporpressuser || '',  // pressure (气压)
+        data.visibility || ''       // visibility
     ].join(',') + '\n';
 
-    fs.appendFileSync(filePath, row, 'utf8');
-    console.log(`✅ [${STATIONS[stationId].name}] ${timestamp}`);
-    console.log(`   🌡️  ${data.ct}°C | 💧 ${data.humidity}% | 🌬️  ${data.wind_speed} m/s | 🌧️  ${data.rainfall} mm`);
-    
-    return true;
+    try {
+        fs.appendFileSync(filePath, row, 'utf8');
+        
+        // 打印成功信息
+        const emoji = isNewFile ? '🆕' : '✅';
+        console.log(`${emoji} [${STATIONS[stationId].name}] ${timestamp}`);
+        console.log(`   🌡️  ${data.ct}°C | 💧 ${data.humidity}% | 🌬️  ${data.wind_speed} m/s ${data.wind_dir || ''} | 🌧️  ${data.rainfall || 0} mm`);
+        
+        return true;
+    } catch (error) {
+        console.error(`❌ [${STATIONS[stationId].name}] 写入文件失败: ${error.message}`);
+        return false;
+    }
 }
 
 // 执行数据采集（所有站点）
@@ -177,8 +188,8 @@ async function collectData() {
             } else {
                 failedStations.push(STATIONS[stationId].name);
             }
-            // 每个请求之间延迟800ms，避免请求过快
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // 每个请求之间延迟2秒，避免请求过快
+            await new Promise(resolve => setTimeout(resolve, 2000));
         } catch (error) {
             console.error(`❌ [${STATIONS[stationId].name}] ${error.message}`);
             failedStations.push(STATIONS[stationId].name);
@@ -191,6 +202,13 @@ async function collectData() {
         console.log(`⚠️  失败站点: ${failedStations.join(', ')}`);
     }
     console.log(`📁 数据保存于: ${DATA_DIR}`);
+    
+    // 列出生成的文件
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.csv'));
+    console.log(`📄 CSV 文件数: ${files.length}`);
+    files.slice(0, 3).forEach(f => console.log(`   - ${f}`));
+    if (files.length > 3) console.log(`   ... 还有 ${files.length - 3} 个文件`);
+    
     console.log(`${'='.repeat(70)}\n`);
     
     // 返回状态码
